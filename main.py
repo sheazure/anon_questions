@@ -19,6 +19,17 @@ def start(message):
     global recip, id_message, sender
     check_user(message) # добавленме в бд пользователей
 
+
+    conn = sqlite3.connect(r'ias.sql')
+    cur = conn.cursor()
+
+    cur.execute("CREATE TABLE IF NOT EXISTS ias (id_owner INTEGER, id_message INTEGER, id_sender INTEGER)")
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+
     if " " not in message.text: # не по рефу
         link_user = 'https://t.me/AskYourFriendAnon_bot/?start=' + str(for_ref(message.from_user.id, int(key, 2)))
         bot.send_message(message.chat.id, f"чел вот твоя ссылка:\n{link_user}")
@@ -79,10 +90,26 @@ def show_admins(message):
 @bot.message_handler()
 def get_answer(message):
     if message.reply_to_message != None:
-        if message.reply_to_message.id in ids_and_senders.keys():
-            bot.send_message(message.chat.id, "Ответ отправлен!")
-            bot.send_message(ids_and_senders[message.reply_to_message.id], "Тебе пришел ответ от человека, которому ты отправил анонимное сообщение:\n\n" + message.text)
-            ids_and_senders.pop(message.reply_to_message.id)
+
+        conn = sqlite3.connect(r'ias.sql')
+        cur = conn.cursor()
+
+        info = cur.execute(f'SELECT * FROM ias WHERE id_owner={message.from_user.id}')
+
+        a = info.fetchall()
+
+        for el in a:
+            if message.reply_to_message.message_id == el[1]:
+                bot.send_message(el[2], "Тебе пришел ответ от человека, которому ты отправил анонимное сообщение:\n\n" + str(message.text))
+                bot.send_message(el[0], "Ответ отправлен!")
+                return 0
+        
+        bot.send_message(message.from_user.id, "Ты можешь отвечать только на анонимные сообщения🤓🤓🤓")
+
+        #if message.reply_to_message.id in ids_and_senders.keys():
+            #bot.send_message(message.chat.id, "Ответ отправлен!")
+           # bot.send_message(ids_and_senders[message.reply_to_message.id], "Тебе пришел ответ от человека, которому ты отправил анонимное сообщение:\n\n" + message.text)
+           # ids_and_senders.pop(message.reply_to_message.id)
 
 def send_message(message):
     global id_message, sender, recip
@@ -90,8 +117,16 @@ def send_message(message):
     bot.send_message(sender, "Сообщение отправлено! Ожидай ответа от получателя")
     id_message = bot.send_message(recip, "⬇️Тебе пришло новое анонимное сообщение🚀\n\n" + text + "\n\nСвайпни для ответа↩️\n")
     id_message = id_message.message_id
-    ids_and_senders[id_message] = sender
+    
+    #добавление в бд неотвеченных анонок
+    conn = sqlite3.connect(r'ias.sql')
+    cur = conn.cursor()
 
+    cur.execute("INSERT INTO ias (id_owner, id_message, id_sender) VALUES ('%d', '%d', '%d')" % (recip, id_message, sender))
+    conn.commit()
+
+    cur.close()
+    conn.close()
 
 def check_admin(message):
 
@@ -99,6 +134,9 @@ def check_admin(message):
         return True
     else:
         return False
+    
+def get_ias_from_db(message):
+    pass
 
         
 def check_user(message): # добавление в список юзеров

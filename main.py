@@ -1,10 +1,18 @@
 import telebot
 import sqlite3
+import os
 from encryptor import for_ref
 from encryptor import key
+from dotenv import load_dotenv
+from os.path import join, dirname
 
+def get_from_env(key):
+    dotenv_path = join(dirname(__file__), "token.env")
+    load_dotenv(dotenv_path)
+    return os.environ.get(key)
 
-bot = telebot.TeleBot("7117210455:AAHgyrPSGZ1ML6htldUwtpPHj5bcpInC1II")
+token = get_from_env('TG_BOT_TOKEN')
+bot = telebot.TeleBot(token)
 
 recip = None
 sender = None
@@ -12,8 +20,7 @@ sender_username = None
 id_message = None
 
 
-#айди сообщения которое отправил чел и его айди,чтобы ответить ему
-ids_and_senders = {} # без ответа
+
 
 @bot.message_handler(commands=['start', 'hello'])
 def start(message):
@@ -42,14 +49,8 @@ def start(message):
         bot.send_message(message.chat.id, "Напиши сообщение, которое ты хочешь, владелец ссылки получит его, но не будет знать от кого оно!")
         bot.register_next_step_handler(message, send_message)
 
-@bot.message_handler(['show_ids_and_senders'])
-def show_ids_and_senders(message):
-    if not check_admin(message):
-        bot.send_message(message.chat.id, "Неизвестная команда!")
-        return 0
-    bot.send_message(message.chat.id, str(ids_and_senders))
 
-@bot.message_handler(['show_users'])
+@bot.message_handler(commands=['show_users'])
 def show_users(message):
     if not check_admin(message):
         bot.send_message(message.chat.id, "Неизвестная команда!")
@@ -70,7 +71,9 @@ def show_users(message):
 
     bot.send_message(message.chat.id, info)
 
-@bot.message_handler(['show_admins'])
+
+
+@bot.message_handler(commands=['show_admins'])
 def show_admins(message):
     if not check_admin(message):
         bot.send_message(message.chat.id, "Неизвестная команда!")
@@ -88,7 +91,9 @@ def show_admins(message):
 
     bot.send_message(message.chat.id, info)
 
-@bot.message_handler(['show_ias'])
+
+
+@bot.message_handler(commands=['show_ias'])
 def show_ias(message):
 
     conn = sqlite3.connect(r'ias.sql')
@@ -102,36 +107,21 @@ def show_ias(message):
     for el in a:
         info += 'ID RECIPIENT: ' + str(el[0]) + '\n' + "USERNAME RECIPIENT: " + str(el[1]) + '\n' + "ID MESSAGE: " + str(el[2]) + '\n' + "ID SENDER: " + str(el[3]) + "\n" + "USERNAME SENDER: " + str(el[4]) + "\n" + "TEXT: " + str(el[5]) + "\n\n"
 
-    bot.send_message(message.chat.id, info)    
+    bot.send_message(message.chat.id, info)   
 
-@bot.message_handler()
-def get_answer(message):
-    if message.reply_to_message != None:
+    cur.close()
+    conn.close() 
 
-        conn = sqlite3.connect(r'ias.sql')
-        cur = conn.cursor()
 
-        info = cur.execute(f'SELECT * FROM ias WHERE id_owner={message.from_user.id}')
-
-        a = info.fetchall()
-
-        for el in a:
-            if message.reply_to_message.message_id == el[2]:
-                bot.send_message(el[3], "Тебе пришел ответ от человека, которому ты отправил анонимное сообщение:\n\n" + str(message.text))
-                bot.send_message(el[0], "Ответ отправлен!")
-                return 0
-        
-        bot.send_message(message.from_user.id, "Ты можешь отвечать только на анонимные сообщения🤓🤓🤓")
-
-        #if message.reply_to_message.id in ids_and_senders.keys():
-            #bot.send_message(message.chat.id, "Ответ отправлен!")
-           # bot.send_message(ids_and_senders[message.reply_to_message.id], "Тебе пришел ответ от человека, которому ты отправил анонимное сообщение:\n\n" + message.text)
-           # ids_and_senders.pop(message.reply_to_message.id)
 
 def send_message(message):
     global id_message, sender, recip, sender_username
     text = message.text
-    bot.send_message(sender, "Сообщение отправлено! Ожидай ответа от получателя")
+    if text[0] == '/':
+        bot.send_message(message.chat.id, "Неизвестная команда!")
+        return 0
+    #bot.send_message(sender, "Сообщение отправлено! Ожидай ответа от получателя")
+    bot.reply_to(message, "Сообщение отправлено! Ожидай ответа от получателя")
     id_message = bot.send_message(recip, "⬇️Тебе пришло новое анонимное сообщение🚀\n\n" + text + "\n\nСвайпни для ответа↩️\n")
     id_message = id_message.message_id
     
@@ -146,13 +136,38 @@ def send_message(message):
     cur.close()
     conn.close()
 
+
+@bot.message_handler()
+def get_answer(message):
+    if message.reply_to_message != None:
+
+        conn = sqlite3.connect(r'ias.sql')
+        cur = conn.cursor()
+
+        info = cur.execute(f'SELECT * FROM ias WHERE id_owner={message.from_user.id}')
+
+        a = info.fetchall()
+
+        for el in a:
+            if message.reply_to_message.message_id == el[2]:
+
+                bot.send_message(el[3], "Тебе пришел ответ от человека, которому ты отправил анонимное сообщение:\n\n" + str(message.text))
+                bot.send_message(el[0], "Ответ отправлен!")
+                return 0
+        
+        bot.send_message(message.from_user.id, "Ты можешь отвечать только на анонимные сообщения🤓🤓🤓")
+        
+        cur.close()
+        conn.close()
+
+
+
 def check_admin(message):
 
     if message.from_user.id in [1404205394]:
         return True
     else:
         return False
-
 
 
         
@@ -175,7 +190,6 @@ def check_user(message): # добавление в список юзеров
 
     cur.close()
     conn.close()
-
 
 
 

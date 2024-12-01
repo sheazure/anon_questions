@@ -8,6 +8,7 @@ bot = telebot.TeleBot("7117210455:AAHgyrPSGZ1ML6htldUwtpPHj5bcpInC1II")
 
 recip = None
 sender = None
+sender_username = None
 id_message = None
 
 
@@ -16,14 +17,14 @@ ids_and_senders = {} # без ответа
 
 @bot.message_handler(commands=['start', 'hello'])
 def start(message):
-    global recip, id_message, sender
+    global recip, id_message, sender, sender_username
     check_user(message) # добавленме в бд пользователей
 
 
     conn = sqlite3.connect(r'ias.sql')
     cur = conn.cursor()
 
-    cur.execute("CREATE TABLE IF NOT EXISTS ias (id_owner INTEGER, id_message INTEGER, id_sender INTEGER)")
+    cur.execute("CREATE TABLE IF NOT EXISTS ias (id_owner INTEGER, username_owner varchar(16), id_message INTEGER, id_sender INTEGER, username_sender varchar(16), text varchar(1000))")
     conn.commit()
 
     cur.close()
@@ -35,6 +36,7 @@ def start(message):
         bot.send_message(message.chat.id, f"чел вот твоя ссылка:\n{link_user}")
     else: # по рефу
         sender = message.from_user.id
+        sender_username = message.from_user.username
         recip = message.text.split()[1]
         recip = for_ref(recip, int(key, 2)) # id получателя
         bot.send_message(message.chat.id, "Напиши сообщение, которое ты хочешь, владелец ссылки получит его, но не будет знать от кого оно!")
@@ -86,6 +88,21 @@ def show_admins(message):
 
     bot.send_message(message.chat.id, info)
 
+@bot.message_handler(['show_ias'])
+def show_ias(message):
+
+    conn = sqlite3.connect(r'ias.sql')
+    cur = conn.cursor()
+
+    a = cur.execute("SELECT * FROM ias")
+    a = a.fetchall()
+
+    info = ' '
+
+    for el in a:
+        info += 'ID RECIPIENT: ' + str(el[0]) + '\n' + "USERNAME RECIPIENT: " + str(el[1]) + '\n' + "ID MESSAGE: " + str(el[2]) + '\n' + "ID SENDER: " + str(el[3]) + "\n" + "USERNAME SENDER: " + str(el[4]) + "\n" + "TEXT: " + str(el[5]) + "\n\n"
+
+    bot.send_message(message.chat.id, info)    
 
 @bot.message_handler()
 def get_answer(message):
@@ -99,8 +116,8 @@ def get_answer(message):
         a = info.fetchall()
 
         for el in a:
-            if message.reply_to_message.message_id == el[1]:
-                bot.send_message(el[2], "Тебе пришел ответ от человека, которому ты отправил анонимное сообщение:\n\n" + str(message.text))
+            if message.reply_to_message.message_id == el[2]:
+                bot.send_message(el[3], "Тебе пришел ответ от человека, которому ты отправил анонимное сообщение:\n\n" + str(message.text))
                 bot.send_message(el[0], "Ответ отправлен!")
                 return 0
         
@@ -112,7 +129,7 @@ def get_answer(message):
            # ids_and_senders.pop(message.reply_to_message.id)
 
 def send_message(message):
-    global id_message, sender, recip
+    global id_message, sender, recip, sender_username
     text = message.text
     bot.send_message(sender, "Сообщение отправлено! Ожидай ответа от получателя")
     id_message = bot.send_message(recip, "⬇️Тебе пришло новое анонимное сообщение🚀\n\n" + text + "\n\nСвайпни для ответа↩️\n")
@@ -121,8 +138,9 @@ def send_message(message):
     #добавление в бд неотвеченных анонок
     conn = sqlite3.connect(r'ias.sql')
     cur = conn.cursor()
-
-    cur.execute("INSERT INTO ias (id_owner, id_message, id_sender) VALUES ('%d', '%d', '%d')" % (recip, id_message, sender))
+    chat = bot.get_chat(recip)
+        # Возвращаем юзернейм
+    cur.execute("INSERT INTO ias (id_owner, username_owner, id_message, id_sender, username_sender, text) VALUES ('%d', '%s', '%d', '%d', '%s', '%s')" % (recip, chat.username, id_message, sender, sender_username, text))
     conn.commit()
 
     cur.close()
@@ -134,9 +152,8 @@ def check_admin(message):
         return True
     else:
         return False
-    
-def get_ias_from_db(message):
-    pass
+
+
 
         
 def check_user(message): # добавление в список юзеров

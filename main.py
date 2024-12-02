@@ -81,8 +81,8 @@ def callback_message(callback):
 @bot.message_handler(commands=['show_users'])
 def show_users(message):
     if not check_admin(message):
-        bot.send_message(message.chat.id, "Неизвестная команда!")
-        return 0
+        bot.reply_to(message, "Неизвестная команда!")
+        return
     conn = sqlite3.connect(r'C:\Users\sheaz\Desktop\Anon_questions\users.sql')
     cur = conn.cursor()
 
@@ -104,8 +104,8 @@ def show_users(message):
 @bot.message_handler(commands=['show_admins'])
 def show_admins(message):
     if not check_admin(message):
-        bot.send_message(message.chat.id, "Неизвестная команда!")
-        return 0
+        bot.reply_to(message, "Неизвестная команда!")
+        return
     conn = sqlite3.connect(r'C:\Users\sheaz\Desktop\Anon_questions\admins.sql')
     cur = conn.cursor()
 
@@ -124,8 +124,8 @@ def show_admins(message):
 @bot.message_handler(commands=['show_ias'])
 def show_ias(message):
     if not check_admin(message):
-        bot.send_message(message.chat.id, "Неизвестная команда!")
-        return 0
+        bot.reply_to(message, "Неизвестная команда!")
+        return
 
     conn = sqlite3.connect(r'ias.sql')
     cur = conn.cursor()
@@ -159,6 +159,8 @@ def add_admin(message):
     bot.send_message(message.chat.id, "Введи id и username пользователя через пробел")
     bot.register_next_step_handler(message, add_admin_step2)
 
+
+
 def add_admin_step2(message):
     user_data = message.text.split()
     if len(user_data) < 2:
@@ -190,6 +192,10 @@ def send_message(message):
         bot.send_message(message.chat.id, "Неизвестная команда") # ибо она не сработала во всех хендлерах
         bot.register_next_step_handler(message, send_message)
         return
+    try:
+        history_messages[message.chat.id].append(message)
+    except KeyError:
+        history_messages[message.chat.id] = [message]
 
 
     id_message = bot.send_message(recip, "📩Тебе пришло новое анонимное сообщение🚀\n\n" + text + "\n\nСвайпни для ответа↩️\n")
@@ -219,7 +225,6 @@ def send_message(message):
     
 
 
-
 @bot.message_handler()
 def get_answer(message):
     if message.text[0] == '/':
@@ -237,11 +242,15 @@ def get_answer(message):
         for el in a:
             if message.reply_to_message.message_id == el[2]: # если айди сообщения на которое ответили, есть в бд неотвеченных анонок(воизбежание ответа на другое сообщение бота)
                 bot.send_message(el[0], "Ответ отправлен!")
-                bot.send_message(el[3], f"Тебе пришел ответ от человека, которому ты отправил анонимное сообщение:\n\n" + str(message.text))
+                #bot.send_message(el[3], f"Тебе пришел ответ от человека, которому ты отправил анонимное сообщение:\n\n" + str(message.text))
                 
+                for item in history_messages[el[3]]:
+                    if item.text == el[5]:
+                        bot.reply_to(item, f"Тебе пришел ответ от человека, которому ты отправил анонимное сообщение:\n\n" + str(message.text))
+                        history_messages[el[3]].remove(item)
                 # el[5] текст который надо нам искать в диалоге с el[3]
 
-                return 5
+                return
         
         bot.send_message(message.from_user.id, "Ты можешь отвечать только на анонимные сообщения🤓🤓🤓")
         
@@ -255,10 +264,17 @@ def get_answer(message):
 
 def check_admin(message): # проверка на админа
 
-    if message.from_user.id in [1404205394]:
-        return True
-    else:
-        return False
+    conn = sqlite3.connect(r'admins.sql')
+    cur = conn.cursor()
+
+    info = cur.execute("SELECT * FROM admins").fetchall()
+
+    for item in info:
+        if item[0] == message.from_user.id:
+            return True
+        
+    return False
+
 
         
 def check_user(message): # добавление в список юзеров
